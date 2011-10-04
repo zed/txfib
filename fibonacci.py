@@ -2,13 +2,18 @@
 """
 https://github.com/glenjamin/node-fib
 """
+import decimal
 import itertools
 
-from twisted.internet       import reactor, defer, task
+from twisted.internet       import reactor, defer, task, threads
 from twisted.python         import log
 from twisted.web            import http, resource, server
 
 class FibResource(resource.Resource):
+    """Serve nth fibonacci number on /n request.
+
+    Cancel computations on disconnect.
+    """
     isLeaf = True
     def __init__(self, fib):
         resource.Resource.__init__(self)
@@ -77,20 +82,50 @@ def cooperator(iterable, n, yield_interval, callback):
     callback(f)
 
 def iterfib(n):
-    """Return deferred n-th fibonacci number in a non-blocking manner."""    
+    """Return deferred n-th fibonacci number in a non-blocking manner.
+
+    """    
     d = defer.Deferred(canceller=lambda _: t.stop())
     t = task.cooperate(cooperator(fibgen(), n+1, 1000, d.callback))    
     return d
 
+
+def binet_decimal(n, precision=None):
+    """
+    >>> map(binet_decimal, range(10))
+    ['0', '1', '1', '2', '3', '5', '8', '13', '21', '34']
+    """
+    with decimal.localcontext() as cxt:
+        if precision is not None:
+            cxt.prec = precision
+        with decimal.localcontext(cxt) as nested_cxt:
+            nested_cxt.prec += 2  # increase prec. for intermediate results
+            sqrt5 = decimal.Decimal(5).sqrt()
+            f = ((1 + sqrt5) / 2)**n / sqrt5
+        s = str(+f.to_integral()) # get required precision
+    return s
+
+def test_binet_precision():
+    for n in range(10)+[10000]:
+        bd = binet_decimal(n)
+        fi = str(next(itertools.islice(fibgen(), n, n+1)))
+        assert bd == fi, (n, bd, fi)
+
+def binetfib(n, precision=None):
+    """Calculate nth fibonacci number using Binet's formula."""
+    return threads.deferToThread(binet_decimal, n, precision)
+
 if __name__ == '__main__':
-    import doctest; doctest.testmod()
     import os
-    import sys
     with open('f.pid', 'w') as f:
         f.write(str(os.getpid()))
+    
+    import doctest; doctest.testmod()
 
+    import sys
     log.startLogging(sys.stdout)
     root = resource.Resource()
     root.putChild("iterfib", FibResource(iterfib))
+    root.putChild("binetfib", FibResource(binetfib))
     reactor.listenTCP(8880, server.Site(root))
     reactor.run()
