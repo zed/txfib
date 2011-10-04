@@ -1,0 +1,28 @@
+#+TITLE: txfib
+
+Inspired by https://github.com/glenjamin/node-fib
+
+*** Algorithms
+
+- iterfib :: O(n) steps, O(n) in memory (to hold the result)
+             simple iterative non-blocking
+- sicpfib :: O(log(n)) steps, O(n) in memory
+             based on finding power of 2x2 matrix
+- binetfib_exact :: O(1) *bigdecimal* steps, O(n) in memory
+                    Binet's formula; precision depends on n
+- binetfib :: O(1) steps, O(1) memory
+              the same but with fixed precision
+- memfib :: O(a**n) steps, O(a**n) memory
+            recursive formula with unlimited memoization
+
+nth fibonacci number has O(n) digits so each step is O(n) operation by
+itself (except `binetfib()` that produces inexact results).
+
+*** Usage
+
+: $ pip install twisted
+: $ twistd -ny fibonacci.py
+
+Open http://localhost:1597/ in browser
+
+
