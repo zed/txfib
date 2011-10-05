@@ -2,7 +2,17 @@
 
 Inspired by [[https://github.com/glenjamin/node-fib]]
 
-*** Algorithms
+*** Considered Approaches
+
+Here's approaches presented in `txfib` for running a long CPU/memory intensive
+operation:
+
+- in separate threads (with a thread pool); e.g., `recfib()`
+- in separate processes (without a process  pool); e.g., `binetfib_exact()`
+- in a reactor thread
+  + blocking the event-loop for a long time; e.g., `binetfib()`
+  + non-blocking (cooperatively i.e., blocking for a short time);
+    e.g., `iterfib()`, `sicpfib()`, `memfib()`
 
 - iterfib :: O(n) steps, O(n) in memory (to hold the result)
              simple iterative non-blocking
@@ -12,10 +22,11 @@ Inspired by [[https://github.com/glenjamin/node-fib]]
                     Binet's formula; precision depends on n
 - binetfib :: O(1) steps, O(1) memory in the reactor thread
               the same but with fixed precision
-- memfib :: O(a**n) steps, O(a**n) memory
-            recursive formula with unlimited memoization
+- memfib :: recursive formula with limited memoization running in the
+            reactor thread cooperatively
 
 - recfib ::  O(a**n) steps, O(a**n) memory in a thread
+            recursive formula without memoization
 
 nth fibonacci number has O(n) digits so each step is O(n) operation by
 itself (except `binetfib()` that produces inexact results).

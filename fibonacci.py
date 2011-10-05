@@ -7,11 +7,19 @@ import decimal
 import functools
 import itertools
 import math
+import os
 import sys
+
+from collections import OrderedDict
 
 from twisted.internet import reactor, defer, task, utils, threads
 from twisted.python   import log
 from twisted.web      import http, resource, server, static
+
+try: import psutil
+except ImportError:
+    assert 0
+    psutil = None
 
 
 class FibResource(resource.Resource):
@@ -25,29 +33,39 @@ class FibResource(resource.Resource):
         self.fib = fib
 
     def render_GET(self, request):
-        def report_timings(_, start=reactor.seconds()):
-            print >> request, "\n%.2f ms" % (1000*(reactor.seconds() - start),)
+        def report_timings(request, start=reactor.seconds()):
+            print >> request, "\n%.0f ms" % (1000*(reactor.seconds() - start),)
 
+        # parse URL
         try: n = int(request.postpath[0])
         except (IndexError, ValueError), e:
             request.setResponseCode(http.BAD_REQUEST)
             return str(e)
-            
+
+        # find nth fibonacci number
         d = defer.maybeDeferred(self.fib, n)
-        d.addCallback(str).addCallback(request.write)
-        d.addCallback(report_timings)
-        d.addCallback(lambda _: request.finish())
-        d.addErrback(self.fail_request, request)
+        @d.addCallback
+        def finish_request(nth_fibonacci):
+            request.write(str(nth_fibonacci))
+            report_timings(request)
+            report_process_info(request)
+            request.finish()
+        @d.addErrback
+        def fail_request(reason):
+            if reason and not reason.check(defer.CancelledError):
+                # show page with stacktrace
+                request.processingFailed(reason)
         request.notifyFinish().addErrback(lambda _: d.cancel())
         return server.NOT_DONE_YET
 
-    def fail_request(self, reason, request):
-        if reason:
-            if reason.check(defer.CancelledError):
-                reason = None # discard
-            else: # show page with stacktrace
-                request.processingFailed(reason)
 
+if psutil is not None:
+    def report_process_info(request, p = psutil.Process(os.getpid())):
+        """Report CPU/memory usage of the process."""
+        for f in [p.get_memory_info, p.get_threads]:
+            print >> request, f()
+else:
+    report_process_info = lambda *args,**kwargs: None
 
 def gcd(a, b):
     """Return GCD (greatest common divisor) for positive integers a,b.
@@ -90,6 +108,7 @@ def cooperator(iterable, n, yield_interval, callback):
 
 
 def gen2deferred(yield_interval=1):
+    """Decorator that converts generator to deferred."""
     def gen_decorator(func):
         @functools.wraps(func)
         def wrapper(n):
@@ -182,38 +201,45 @@ def recfib(n):
     return threads.deferToThread(_recfib, n)
 
 
-def memoize_deferred(func):
-    """Unlimited cache for a function that returns deferred."""
-    def setcache(value, cache, n):
+def memoize_deferred(threshold):
+    """fifo cache limited to threshold items for a function that
+    returns deferred.
+
+    """
+    def setcache(value, n):
+        if len(cache) == threshold: # limit number of items to threshold
+            cache.popitem(last=False) # fifo
         cache[n] = value
         return value
 
-    cache = {}
-    @functools.wraps(func)
-    def wrapper(n):
-        try: return defer.succeed(cache[n])
-        except KeyError:
-            d = func(n)
-            d.addCallback(setcache, cache, n)
-            return d
-    return wrapper
+    cache = OrderedDict()
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(n):
+            try:
+                value = cache[n]
+                return defer.succeed(value)
+            except KeyError:
+                d = func(n)
+                d.addCallback(setcache, n)
+                return d
+        return wrapper
+    return decorator
 
 
-@memoize_deferred
+on_next_tick = lambda f,*a, **kw: task.deferLater(reactor, 0, f, *a, **kw)
+
+@memoize_deferred(threshold=3) # remember a few last values
+@defer.inlineCallbacks
 def memfib(n):
-    """Return deferred nth fibonacci number.
-
-    Famous recursive formula with unlimited memoization
-
-    O(a**n) steps, O(a**n) memory
-    """
-    if n == 0: return defer.succeed(0)
-    if n == 1: return defer.succeed(1)
-    
-    d = defer.gatherResults([task.deferLater(reactor, 0, memfib, n-2),
-                             task.deferLater(reactor, 0, memfib, n-1)])
-    return d.addCallback(sum)
-    
+    """Return deferred nth fibonacci number."""
+    if   n == 0: f = 0
+    elif n == 1: f = 1
+    else:
+        a = yield on_next_tick(memfib, n-2)
+        b = yield on_next_tick(memfib, n-1)
+        f = a + b
+    defer.returnValue(f)
 
 def binet_decimal(n, precision=None):
     """Calculate nth fibonacci number using Binet's formula.
