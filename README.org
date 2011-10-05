@@ -1,6 +1,6 @@
 #+TITLE: txfib
 
-Inspired by https://github.com/glenjamin/node-fib
+Inspired by [[https://github.com/glenjamin/node-fib]]
 
 *** Algorithms
 
@@ -23,6 +23,6 @@ itself (except `binetfib()` that produces inexact results).
 : $ pip install twisted
 : $ twistd -ny fibonacci.py
 
-Open http://localhost:1597/ in browser
+Open [[http://localhost:1597/]] in browser
 
 
