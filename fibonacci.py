@@ -25,6 +25,9 @@ class FibResource(resource.Resource):
         self.fib = fib
 
     def render_GET(self, request):
+        def report_timings(_, start=reactor.seconds()):
+            print >> request, "\n%.2f ms" % (1000*(reactor.seconds() - start),)
+
         try: n = int(request.postpath[0])
         except (IndexError, ValueError), e:
             request.setResponseCode(http.BAD_REQUEST)
@@ -32,6 +35,7 @@ class FibResource(resource.Resource):
             
         d = defer.maybeDeferred(self.fib, n)
         d.addCallback(str).addCallback(request.write)
+        d.addCallback(report_timings)
         d.addCallback(lambda _: request.finish())
         d.addErrback(self.fail_request, request)
         request.notifyFinish().addErrback(lambda _: d.cancel())
