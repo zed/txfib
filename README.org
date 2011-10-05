@@ -25,4 +25,53 @@ itself (except `binetfib()` that produces inexact results).
 
 Open [[http://localhost:1597/]] in browser
 
+*** Performance
 
+`/sicpfib/100` is ~2 times worse when node-fib on `ab`:
+
+#+BEGIN_EXAMPLE
+$ ab -n 10000 -c 50 'http://127.0.0.1:1597/sicpfib/100'
+This is ApacheBench, Version 2.3 <$Revision: 655654 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking 127.0.0.1 (be patient)
+
+
+Server Software:        TwistedWeb/10.2.0
+Server Hostname:        127.0.0.1
+Server Port:            1597
+
+Document Path:          /sicpfib/100
+Document Length:        21 bytes
+
+Concurrency Level:      50
+Time taken for tests:   4.442 seconds
+Complete requests:      10000
+Failed requests:        0
+Write errors:           0
+Total transferred:      1290000 bytes
+HTML transferred:       210000 bytes
+Requests per second:    2251.45 [#/sec] (mean)
+Time per request:       22.208 [ms] (mean)
+Time per request:       0.444 [ms] (mean, across all concurrent requests)
+Transfer rate:          283.63 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    0   0.1      0       2
+Processing:    18   22   1.4     22      34
+Waiting:       18   22   1.4     22      34
+Total:         19   22   1.5     22      34
+
+Percentage of the requests served within a certain time (ms)
+  50%     22
+  66%     22
+  75%     22
+  80%     23
+  90%     23
+  95%     24
+  98%     28
+  99%     29
+ 100%     34 (longest request)
+#+END_EXAMPLE
