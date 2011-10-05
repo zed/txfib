@@ -9,9 +9,9 @@ import itertools
 import math
 import sys
 
-from twisted.internet       import reactor, defer, task, utils
-from twisted.python         import log
-from twisted.web            import http, resource, server, static
+from twisted.internet import reactor, defer, task, utils, threads
+from twisted.python   import log
+from twisted.web      import http, resource, server, static
 
 
 class FibResource(resource.Resource):
@@ -158,31 +158,28 @@ def sicpfib(n):
     yield b
 
 
-def memoize(func):
-    """Unlimited cache."""
-    cache = {}
-    @functools.wraps(func)
-    def wrapper(n):
-        try: return cache[n]
-        except KeyError:
-            ret = cache[n] = func(n)
-            return ret
-    return wrapper
-
-
-@memoize
-def recfib(n):
+def _recfib(n):
     """
-    >>> recfib(10)
+    >>> _recfib(10)
     55
     """
     if n == 0: return 0
     if n == 1: return 1
-    return recfib(n-2) + recfib(n-1)
+    return _recfib(n-2) + _recfib(n-1)
+
+
+def recfib(n):
+    """Unmodified blocking alg.
+
+    NOTE: uninterruptable
+    
+    O(a**n) steps, O(a**n) memory in a thread
+    """
+    return threads.deferToThread(_recfib, n)
 
 
 def memoize_deferred(func):
-    """Unlimited cache for function that returns deferred."""
+    """Unlimited cache for a function that returns deferred."""
     def setcache(value, cache, n):
         cache[n] = value
         return value
@@ -269,7 +266,7 @@ def getFibFactory():
 
     html = '<!doctype html><html><body><ul>'
     for f in [iterfib, sicpfib, binetfib, binetfib_exact,
-              memfib,
+              memfib, recfib,
               ]:
         html += '<li><a href="/{f}/17">{f}</a>\n'.format(f=f.__name__)
         root.putChild(f.__name__, FibResource(f))
