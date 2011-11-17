@@ -36,6 +36,9 @@ itself (except `binetfib()` that produces inexact results).
 : $ pip install twisted
 : $ twistd -ny fibonacci.py
 
+Optionally you could install ~psutil~ to enable reporting CPU/memory
+usage of the process.
+
 Open [[http://localhost:1597/]] in browser
 
 *** Performance

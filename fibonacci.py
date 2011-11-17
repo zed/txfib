@@ -18,7 +18,6 @@ from twisted.web      import http, resource, server, static
 
 try: import psutil
 except ImportError:
-    assert 0
     psutil = None
 
 
